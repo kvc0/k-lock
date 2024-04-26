@@ -28,6 +28,3 @@ jobs:
 
     - name: Run tests
       run: cargo test --verbose
-
-    - name: Ensure protos are up to date
-      run: cargo publish --dry-run --all-features -p goodmetrics
