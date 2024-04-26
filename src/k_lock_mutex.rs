@@ -27,6 +27,9 @@ use atomic_wait::wake_one;
 /// If critical sections are more than a few nanoseconds long, `std::sync::Mutex`
 /// may be better. As always, profiling and measuring is important.
 ///
+/// Much of this mutex implementation and its documentation is adapted with humble
+/// gratitude from the venerable `std::sync::Mutex`.
+///
 /// # Poisoning
 ///
 /// The mutex in this module does not implement poisoning.
