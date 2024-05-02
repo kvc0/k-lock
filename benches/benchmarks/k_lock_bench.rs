@@ -7,7 +7,6 @@ use k_lock::Mutex;
 fn contention(c: &mut Criterion) {
     let mut group = c.benchmark_group("Mutex");
     group.nresamples(800000);
-    group.throughput(criterion::Throughput::Elements(1));
     for thread_count in [
         1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
     ] {
@@ -32,24 +31,28 @@ fn bench(
     thread_count: usize,
     mutex: impl Lock<usize>,
 ) {
-    group.bench_function(BenchmarkId::new(name, thread_count), |bencher| {
-        bencher.iter_custom(|iterations| {
-            let iterations_per_thread = max(1, iterations as usize / thread_count);
+    group.bench_with_input(
+        BenchmarkId::new(name, thread_count),
+        &thread_count,
+        |bencher, thread_count| {
+            bencher.iter_custom(|iterations| {
+                let iterations_per_thread = max(1, iterations as usize / thread_count);
 
-            let start = Instant::now();
-            std::thread::scope(|scope| {
-                for _ in 0..thread_count {
-                    scope.spawn(|| {
-                        for _ in 0..iterations_per_thread {
-                            *mutex.lock() += 1;
-                        }
-                    });
-                }
+                let start = Instant::now();
+                std::thread::scope(|scope| {
+                    for _ in 0..*thread_count {
+                        scope.spawn(|| {
+                            for _ in 0..iterations_per_thread {
+                                *mutex.lock() += 1;
+                            }
+                        });
+                    }
+                });
+
+                start.elapsed()
             });
-
-            start.elapsed()
-        });
-    });
+        },
+    );
 }
 
 trait Lock<T>: Sync {
