@@ -22,6 +22,12 @@ fn contention(c: &mut Criterion) {
             thread_count,
             std::sync::Mutex::new(0_usize),
         );
+        bench(
+            "parking_lot",
+            &mut group,
+            thread_count,
+            parking_lot::const_mutex(0_usize),
+        );
     }
 }
 
@@ -70,6 +76,13 @@ impl<T: Send> Lock<T> for std::sync::Mutex<T> {
     #[inline]
     fn lock(&self) -> impl DerefMut<Target = T> {
         self.lock().expect("it should work")
+    }
+}
+
+impl<T: Send> Lock<T> for parking_lot::Mutex<T> {
+    #[inline]
+    fn lock(&self) -> impl DerefMut<Target = T> {
+        self.lock()
     }
 }
 
