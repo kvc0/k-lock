@@ -7,9 +7,15 @@ through the RAII guards returned from [`lock`] and [`try_lock`], which
 guarantees that the data is only ever accessed when the mutex is locked.
 
 # Difference from `std::sync::Mutex`
+16 threads, short critical section expression: `*mutex.lock() += 1;` 
+## AMD x86_64
 ![image](https://github.com/kvc0/k-lock/assets/3454741/43d61318-ceae-4dcd-8cd7-ab39c07f5913)
-AMD x86_64 - 16 threads, short critical section expression: `*mutex.lock() += 1;` 
 
+## AWS c7g.2xlarge aarch64
+![image](https://github.com/kvc0/k-lock/assets/3454741/eca25d8b-cb66-4af1-8ac4-67149b9e0455)
+
+
+## About
 This mutex is optimized for brief critical sections. It has short spin cycles
 to prevent overwork, and it aggressively wakes multiple waiters per unlock.
 
