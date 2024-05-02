@@ -5,11 +5,12 @@ use k_lock::Mutex;
 
 #[allow(clippy::expect_used)] // this is a benchmark, lints like this don't matter.
 fn contention(c: &mut Criterion) {
-    for thread_count in [1, 2, 4, 8, 16] {
-        let mut group = c.benchmark_group("Mutex");
-        group.nresamples(800000);
-        group.throughput(criterion::Throughput::Elements(1));
-
+    let mut group = c.benchmark_group("Mutex");
+    group.nresamples(800000);
+    group.throughput(criterion::Throughput::Elements(1));
+    for thread_count in [
+        1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+    ] {
         bench(
             "k-lock",
             &mut group,
