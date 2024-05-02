@@ -23,3 +23,6 @@ atomic-wait                 = { version = "1" }
 [dev-dependencies]
 criterion                   = { version = "0.5" }
 parking_lot                 = { version = "0.12" }
+
+[build-dependencies]
+readme-rustdocifier = "0.1"

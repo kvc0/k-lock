@@ -246,6 +246,7 @@ dependencies = [
  "atomic-wait",
  "criterion",
  "parking_lot",
+ "readme-rustdocifier",
 ]
 
 [[package]]
@@ -385,6 +386,12 @@ dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
 ]
+
+[[package]]
+name = "readme-rustdocifier"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08ad765b21a08b1a8e5cdce052719188a23772bcbefb3c439f0baaf62c56ceac"
 
 [[package]]
 name = "redox_syscall"

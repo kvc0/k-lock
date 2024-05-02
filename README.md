@@ -1,27 +1,29 @@
+# k-lock
+
 A mutual exclusion primitive useful for protecting shared data
 
 This mutex will block threads waiting for the lock to become available. The
-mutex can be created via a [`new`] constructor. Each mutex has a type parameter
+mutex can be created via a \[`new`\] constructor. Each mutex has a type parameter
 which represents the data that it is protecting. The data can only be accessed
-through the RAII guards returned from [`lock`] and [`try_lock`], which
+through the RAII guards returned from \[`lock`\] and \[`try_lock`\], which
 guarantees that the data is only ever accessed when the mutex is locked.
 
-# Difference from `std::sync::Mutex`
+## Difference from `std::sync::Mutex`
 16 threads, short critical section expression: `*mutex.lock() += 1;`
-## Mac OS
+### Mac OS
 This lock is not optimized for Mac OS at this time. The quick way to lock on
 Mac OS is via pthread_mutex, which is not currently implemented in k-lock. If
 you need your mutex to perform well on Mac OS, you need to use `std::sync::Mutex`.
 
-## AMD x86_64
+### AMD x86_64
 ![image](https://github.com/kvc0/k-lock/assets/3454741/43d61318-ceae-4dcd-8cd7-ab39c07f5913)
 
-## AWS c7g.2xlarge aarch64
+### AWS c7g.2xlarge aarch64
 ![image](https://github.com/kvc0/k-lock/assets/3454741/57446b49-5cb1-4900-9cf9-9e5db874c8b7)
 
 Thread count is on the X axis.
 
-## About
+### About
 This mutex is optimized for brief critical sections. It has short spin cycles
 to prevent overwork, and it aggressively wakes multiple waiters per unlock.
 
@@ -34,10 +36,10 @@ may be better. As always, profiling and measuring is important.
 Much of this mutex implementation and its documentation is adapted with humble
 gratitude from the venerable `std::sync::Mutex`.
 
-# Poisoning
+## Poisoning
 The mutex in this module does not implement poisoning.
 
-This means that the [`lock`] and [`try_lock`] methods return a lock, whether
+This means that the \[`lock`\] and \[`try_lock`\] methods return a lock, whether
 a mutex has been poisoned or not. If a panic can put your program in an invalid
 state, you need to ensure that a possibly invalid invariant is not witnessed.
 In these cases you should strongly consider using `std::sync::Mutex`.
@@ -45,7 +47,7 @@ In these cases you should strongly consider using `std::sync::Mutex`.
 It is expected that most uses of this lock will work with brief critical sections
 that do not expose a significant risk of panic.
 
-# Examples
+## Examples
 
 ```rust
 use std::sync::Arc;
