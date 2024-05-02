@@ -1,6 +1,6 @@
 [package]
 name = "k-lock"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "A mutex for short, safe critical sections"
 license = "MIT"
