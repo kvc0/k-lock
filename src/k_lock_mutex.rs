@@ -376,7 +376,7 @@ impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
 impl<T: ?Sized> Drop for MutexGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
-        if self.lock.futex.swap(UNLOCKED, Ordering::Release) == 2 {
+        if self.lock.futex.swap(UNLOCKED, Ordering::Release) == CONTENDED {
             wake_one(addr_of!(self.lock.futex));
             wake_one(addr_of!(self.lock.futex));
         }
