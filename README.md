@@ -12,8 +12,9 @@ guarantees that the data is only ever accessed when the mutex is locked.
 ![image](https://github.com/kvc0/k-lock/assets/3454741/43d61318-ceae-4dcd-8cd7-ab39c07f5913)
 
 ## AWS c7g.2xlarge aarch64
-![image](https://github.com/kvc0/k-lock/assets/3454741/eca25d8b-cb66-4af1-8ac4-67149b9e0455)
+![image](https://github.com/kvc0/k-lock/assets/3454741/57446b49-5cb1-4900-9cf9-9e5db874c8b7)
 
+Thread count is on the X axis.
 
 ## About
 This mutex is optimized for brief critical sections. It has short spin cycles
