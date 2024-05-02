@@ -1,12 +1,12 @@
 use std::{cmp::max, ops::DerefMut, time::Instant};
 
-use criterion::{criterion_group, measurement::WallTime, BenchmarkGroup, Criterion};
+use criterion::{criterion_group, measurement::WallTime, BenchmarkGroup, BenchmarkId, Criterion};
 use k_lock::Mutex;
 
 #[allow(clippy::expect_used)] // this is a benchmark, lints like this don't matter.
 fn contention(c: &mut Criterion) {
     for thread_count in [1, 2, 4, 8, 16] {
-        let mut group = c.benchmark_group(format!("{thread_count:02}"));
+        let mut group = c.benchmark_group("Mutex");
         group.nresamples(800000);
         group.throughput(criterion::Throughput::Elements(1));
 
@@ -31,7 +31,7 @@ fn bench(
     thread_count: usize,
     mutex: impl Lock<usize>,
 ) {
-    group.bench_function(name, |bencher| {
+    group.bench_function(BenchmarkId::new(name, thread_count), |bencher| {
         bencher.iter_custom(|iterations| {
             let iterations_per_thread = max(1, iterations as usize / thread_count);
 
