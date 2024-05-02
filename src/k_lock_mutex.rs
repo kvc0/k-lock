@@ -226,7 +226,7 @@ impl<T: ?Sized> Mutex<T> {
                     .futex
                     .compare_exchange(UNLOCKED, LOCKED, Ordering::Acquire, Ordering::Relaxed)
                     .is_ok())
-                || (state != CONTENDED && self.futex.swap(CONTENDED, Ordering::Acquire) == 0)
+                || (state != CONTENDED && self.futex.swap(CONTENDED, Ordering::Acquire) == UNLOCKED)
             {
                 return MutexGuard {
                     lock: self,
