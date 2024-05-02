@@ -9,6 +9,10 @@ use std::{
 
 use atomic_wait::wake_one;
 
+const UNLOCKED: u32 = 0;
+const LOCKED: u32 = 1;
+const CONTENDED: u32 = 2;
+
 /// A mutual exclusion primitive useful for protecting shared data
 ///
 /// This mutex will block threads waiting for the lock to become available. The
@@ -198,7 +202,7 @@ impl<T: ?Sized> Mutex<T> {
     pub fn lock(&self) -> MutexGuard<T> {
         if self
             .futex
-            .compare_exchange(0, 1, Ordering::Acquire, Ordering::Relaxed)
+            .compare_exchange(UNLOCKED, LOCKED, Ordering::Acquire, Ordering::Relaxed)
             .is_ok()
         {
             return MutexGuard {
@@ -210,26 +214,26 @@ impl<T: ?Sized> Mutex<T> {
             let mut spin = 10;
             let state = loop {
                 let v = self.futex.load(Ordering::Relaxed);
-                if v != 1 || spin == 0 {
+                if v != LOCKED || spin == 0 {
                     break v;
                 }
                 spin_loop();
                 spin -= 1;
             };
 
-            if (state == 0
+            if (state == UNLOCKED
                 && self
                     .futex
-                    .compare_exchange(0, 1, Ordering::Acquire, Ordering::Relaxed)
+                    .compare_exchange(UNLOCKED, LOCKED, Ordering::Acquire, Ordering::Relaxed)
                     .is_ok())
-                || (state != 2 && self.futex.swap(2, Ordering::Acquire) == 0)
+                || (state != CONTENDED && self.futex.swap(CONTENDED, Ordering::Acquire) == 0)
             {
                 return MutexGuard {
                     lock: self,
                     _phantom: PhantomData,
                 };
             }
-            atomic_wait::wait(&self.futex, 2);
+            atomic_wait::wait(&self.futex, CONTENDED);
         }
     }
 
@@ -272,7 +276,7 @@ impl<T: ?Sized> Mutex<T> {
     pub fn try_lock(&self) -> TryLockResult<MutexGuard<'_, T>> {
         match self
             .futex
-            .compare_exchange(0, 1, Ordering::Acquire, Ordering::Relaxed)
+            .compare_exchange(UNLOCKED, LOCKED, Ordering::Acquire, Ordering::Relaxed)
         {
             Ok(_) => Ok(MutexGuard {
                 lock: self,
@@ -319,7 +323,7 @@ impl<T> Mutex<T> {
     pub const fn new(data: T) -> Self {
         Self {
             data: UnsafeCell::new(data),
-            futex: AtomicU32::new(0),
+            futex: AtomicU32::new(UNLOCKED),
         }
     }
 }
@@ -372,7 +376,7 @@ impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
 impl<T: ?Sized> Drop for MutexGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
-        if self.lock.futex.swap(0, Ordering::Release) == 2 {
+        if self.lock.futex.swap(UNLOCKED, Ordering::Release) == 2 {
             wake_one(addr_of!(self.lock.futex));
             wake_one(addr_of!(self.lock.futex));
         }
