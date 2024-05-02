@@ -7,7 +7,12 @@ through the RAII guards returned from [`lock`] and [`try_lock`], which
 guarantees that the data is only ever accessed when the mutex is locked.
 
 # Difference from `std::sync::Mutex`
-16 threads, short critical section expression: `*mutex.lock() += 1;` 
+16 threads, short critical section expression: `*mutex.lock() += 1;`
+## Mac OS
+This lock is not optimized for Mac OS at this time. The quick way to lock on
+Mac OS is via pthread_mutex, which is not currently implemented in k-lock. If
+you need your mutex to perform well on Mac OS, you need to use `std::sync::Mutex`.
+
 ## AMD x86_64
 ![image](https://github.com/kvc0/k-lock/assets/3454741/43d61318-ceae-4dcd-8cd7-ab39c07f5913)
 
