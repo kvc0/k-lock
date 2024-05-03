@@ -1,4 +1,9 @@
-use std::{cmp::max, collections::HashMap, ops::DerefMut, time::Instant};
+use std::{
+    cmp::max,
+    collections::HashMap,
+    ops::DerefMut,
+    time::{Duration, Instant},
+};
 
 use criterion::{criterion_group, measurement::WallTime, BenchmarkGroup, BenchmarkId, Criterion};
 use k_lock::Mutex;
@@ -7,9 +12,8 @@ use k_lock::Mutex;
 fn contention(c: &mut Criterion) {
     let mut group = c.benchmark_group("hashmap critical section");
     group.nresamples(800000);
-    for thread_count in [
-        1, 2, 4, 8, 16, 24, 32,
-    ] {
+    group.measurement_time(Duration::from_secs(5));
+    for thread_count in [1, 2, 4, 8, 16, 24, 32] {
         bench_map(
             "k-lock",
             &mut group,
