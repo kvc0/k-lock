@@ -12,6 +12,7 @@ use atomic_wait::wake_one;
 const UNLOCKED: u32 = 0;
 const LOCKED: u32 = 1;
 const CONTENDED: u32 = 2;
+const EXTRA_CONTENDED: u32 = 3;
 
 /// A mutual exclusion primitive useful for protecting shared data
 ///
@@ -215,17 +216,32 @@ impl<T: ?Sized> Mutex<T> {
 
     /// Move this out so it does not bloat asm and reduce the likelihood of lock() being inlined.
     #[cold]
+    #[allow(clippy::comparison_chain)] // I prefer it this way in this case because of the semantic meaning
     fn lock_contended(&self) -> MutexGuard<T> {
         loop {
             let state = self.spin();
             // when locking under contention you have to stay contended or you may leak wakes
-            if state < CONTENDED && self.futex.swap(CONTENDED, Ordering::Acquire) == UNLOCKED {
-                return MutexGuard {
-                    lock: self,
-                    _phantom: PhantomData,
-                };
-            }
-            atomic_wait::wait(&self.futex, CONTENDED);
+            let expect = if state < CONTENDED {
+                if self.futex.swap(CONTENDED, Ordering::Acquire) == UNLOCKED {
+                    return MutexGuard {
+                        lock: self,
+                        _phantom: PhantomData,
+                    };
+                }
+                CONTENDED
+            } else if state == CONTENDED {
+                if self.futex.swap(EXTRA_CONTENDED, Ordering::Acquire) == UNLOCKED {
+                    return MutexGuard {
+                        lock: self,
+                        _phantom: PhantomData,
+                    };
+                }
+                EXTRA_CONTENDED
+            } else {
+                // we've already promoted to extra contended. We're... extra contended.
+                EXTRA_CONTENDED
+            };
+            atomic_wait::wait(&self.futex, expect);
         }
     }
 
@@ -382,7 +398,10 @@ impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
 impl<T: ?Sized> Drop for MutexGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
-        if self.lock.futex.swap(UNLOCKED, Ordering::Release) == CONTENDED {
+        let released = self.lock.futex.swap(UNLOCKED, Ordering::Release);
+        if released == CONTENDED {
+            wake_one(addr_of!(self.lock.futex));
+        } else if released == EXTRA_CONTENDED {
             wake_one(addr_of!(self.lock.futex));
             wake_one(addr_of!(self.lock.futex));
         }
