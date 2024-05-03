@@ -8,7 +8,7 @@ fn contention(c: &mut Criterion) {
     let mut group = c.benchmark_group("hashmap critical section");
     group.nresamples(800000);
     for thread_count in [
-        1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+        1, 2, 4, 8, 16, 24, 32,
     ] {
         bench_map(
             "k-lock",

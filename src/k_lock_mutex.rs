@@ -154,6 +154,7 @@ const CONTENDED: u32 = 2;
 /// ```
 pub struct Mutex<T: ?Sized> {
     futex: AtomicU32,
+    lock_epoch: AtomicU32,
     data: UnsafeCell<T>,
 }
 
@@ -205,6 +206,7 @@ impl<T: ?Sized> Mutex<T> {
             .compare_exchange(UNLOCKED, LOCKED, Ordering::Acquire, Ordering::Relaxed)
             .is_ok()
         {
+            self.lock_epoch.fetch_add(1, Ordering::Relaxed);
             return MutexGuard {
                 lock: self,
                 _phantom: PhantomData,
@@ -220,6 +222,7 @@ impl<T: ?Sized> Mutex<T> {
             let state = self.spin();
             // when locking under contention you have to stay contended or you may leak wakes
             if state < CONTENDED && self.futex.swap(CONTENDED, Ordering::Acquire) == UNLOCKED {
+                self.lock_epoch.fetch_add(1, Ordering::Relaxed);
                 return MutexGuard {
                     lock: self,
                     _phantom: PhantomData,
@@ -232,11 +235,18 @@ impl<T: ?Sized> Mutex<T> {
     /// Move this out so it does not bloat asm.
     #[cold]
     fn spin(&self) -> u32 {
-        let mut spin = 200;
+        let mut spin = 100;
+        let mut epoch = 0;
         loop {
             let v = self.futex.load(Ordering::Relaxed);
             if v != LOCKED || spin == 0 {
                 break v;
+            }
+            let now = self.lock_epoch.load(Ordering::Relaxed);
+            if now != epoch {
+                // Refresh the spin because this lock is making timely progress.
+                epoch = now;
+                spin = 100;
             }
             spin_loop();
             spin -= 1;
@@ -329,6 +339,7 @@ impl<T> Mutex<T> {
     pub const fn new(data: T) -> Self {
         Self {
             data: UnsafeCell::new(data),
+            lock_epoch: AtomicU32::new(0),
             futex: AtomicU32::new(UNLOCKED),
         }
     }
