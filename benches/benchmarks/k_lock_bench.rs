@@ -22,12 +22,13 @@ fn contention(c: &mut Criterion) {
             thread_count,
             std::sync::Mutex::new(HashMap::new()),
         );
-        bench_map(
-            "parking_lot",
-            &mut group,
-            thread_count,
-            parking_lot::const_mutex(HashMap::new()),
-        );
+        // Parking lot is pretty slow, but it's here in case you are curious.
+        // bench_map(
+        //     "parking_lot",
+        //     &mut group,
+        //     thread_count,
+        //     parking_lot::const_mutex(HashMap::new()),
+        // );
     }
     group.finish();
 
@@ -48,12 +49,13 @@ fn contention(c: &mut Criterion) {
             thread_count,
             std::sync::Mutex::new(0_usize),
         );
-        bench(
-            "parking_lot",
-            &mut group,
-            thread_count,
-            parking_lot::const_mutex(0_usize),
-        );
+        // Parking lot is pretty slow, but it's here in case you are curious.
+        // bench(
+        //     "parking_lot",
+        //     &mut group,
+        //     thread_count,
+        //     parking_lot::const_mutex(0_usize),
+        // );
     }
     group.finish();
 }
