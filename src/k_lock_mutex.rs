@@ -232,7 +232,7 @@ impl<T: ?Sized> Mutex<T> {
     /// Move this out so it does not bloat asm.
     #[cold]
     fn spin(&self) -> u32 {
-        let mut spin = 10;
+        let mut spin = 200;
         loop {
             let v = self.futex.load(Ordering::Relaxed);
             if v != LOCKED || spin == 0 {
