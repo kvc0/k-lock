@@ -210,17 +210,14 @@ impl<T: ?Sized> Mutex<T> {
                 _phantom: PhantomData,
             };
         }
-        loop {
-            let mut spin = 10;
-            let state = loop {
-                let v = self.futex.load(Ordering::Relaxed);
-                if v != LOCKED || spin == 0 {
-                    break v;
-                }
-                spin_loop();
-                spin -= 1;
-            };
+        self.lock_contended()
+    }
 
+    /// Move this out so it does not bloat asm and reduce the likelihood of lock() being inlined.
+    #[cold]
+    fn lock_contended(&self) -> MutexGuard<T> {
+        loop {
+            let state = self.spin();
             if (state == UNLOCKED
                 && self
                     .futex
@@ -234,6 +231,20 @@ impl<T: ?Sized> Mutex<T> {
                 };
             }
             atomic_wait::wait(&self.futex, CONTENDED);
+        }
+    }
+
+    /// Move this out so it does not bloat asm.
+    #[cold]
+    fn spin(&self) -> u32 {
+        let mut spin = 10;
+        loop {
+            let v = self.futex.load(Ordering::Relaxed);
+            if v != LOCKED || spin == 0 {
+                break v;
+            }
+            spin_loop();
+            spin -= 1;
         }
     }
 
