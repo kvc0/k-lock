@@ -218,13 +218,8 @@ impl<T: ?Sized> Mutex<T> {
     fn lock_contended(&self) -> MutexGuard<T> {
         loop {
             let state = self.spin();
-            if (state == UNLOCKED
-                && self
-                    .futex
-                    .compare_exchange(UNLOCKED, LOCKED, Ordering::Acquire, Ordering::Relaxed)
-                    .is_ok())
-                || (state != CONTENDED && self.futex.swap(CONTENDED, Ordering::Acquire) == UNLOCKED)
-            {
+            // when locking under contention you have to stay contended or you may leak wakes
+            if state < CONTENDED && self.futex.swap(CONTENDED, Ordering::Acquire) == UNLOCKED {
                 return MutexGuard {
                     lock: self,
                     _phantom: PhantomData,
