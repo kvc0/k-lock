@@ -19,7 +19,11 @@ you need your mutex to perform well on Mac OS, you need to use `std::sync::Mutex
 ![image](https://github.com/kvc0/k-lock/assets/3454741/43d61318-ceae-4dcd-8cd7-ab39c07f5913)
 
 ### AWS c7g.2xlarge aarch64
+#### Tiny critical section
 ![image](https://github.com/kvc0/k-lock/assets/3454741/57446b49-5cb1-4900-9cf9-9e5db874c8b7)
+#### Hashmap operation in critical section
+![image](https://github.com/kvc0/k-lock/assets/3454741/4133c48c-603a-4100-bcc6-0c65cbc299b5)
+
 
 Thread count is on the X axis.
 
