@@ -9,6 +9,8 @@ use std::{
 
 use atomic_wait::wake_one;
 
+use crate::poison::{self, LockResult, TryLockError, TryLockResult};
+
 const UNLOCKED: u32 = 0;
 const LOCKED: u32 = 1;
 const CONTENDED: u32 = 2;
@@ -156,6 +158,7 @@ const EXTRA_CONTENDED: u32 = 3;
 pub struct Mutex<T: ?Sized> {
     futex: AtomicU32,
     lock_epoch: AtomicU32,
+    poison: poison::Flag,
     data: UnsafeCell<T>,
 }
 
@@ -201,17 +204,14 @@ impl<T: ?Sized> Mutex<T> {
     /// assert_eq!(*mutex.lock(), 10);
     /// ```
     #[inline]
-    pub fn lock(&self) -> MutexGuard<T> {
+    pub fn lock(&self) -> LockResult<MutexGuard<T>> {
         if self
             .futex
             .compare_exchange(UNLOCKED, LOCKED, Ordering::Acquire, Ordering::Relaxed)
             .is_ok()
         {
             self.lock_epoch.fetch_add(1, Ordering::Relaxed);
-            return MutexGuard {
-                lock: self,
-                _phantom: PhantomData,
-            };
+            return MutexGuard::new(self);
         }
         self.lock_contended()
     }
@@ -219,26 +219,20 @@ impl<T: ?Sized> Mutex<T> {
     /// Move this out so it does not bloat asm and reduce the likelihood of lock() being inlined.
     #[cold]
     #[allow(clippy::comparison_chain)] // I prefer it this way in this case because of the semantic meaning
-    fn lock_contended(&self) -> MutexGuard<T> {
+    fn lock_contended(&self) -> LockResult<MutexGuard<T>> {
         loop {
             let state = self.spin();
             // when locking under contention you have to stay contended or you may leak wakes
             let expect = if state < CONTENDED {
                 if self.futex.swap(CONTENDED, Ordering::Acquire) == UNLOCKED {
                     self.lock_epoch.fetch_add(1, Ordering::Relaxed);
-                    return MutexGuard {
-                        lock: self,
-                        _phantom: PhantomData,
-                    };
+                    return MutexGuard::new(self);
                 }
                 CONTENDED
             } else if state == CONTENDED {
                 if self.futex.swap(EXTRA_CONTENDED, Ordering::Acquire) == UNLOCKED {
                     self.lock_epoch.fetch_add(1, Ordering::Relaxed);
-                    return MutexGuard {
-                        lock: self,
-                        _phantom: PhantomData,
-                    };
+                    return MutexGuard::new(self);
                 }
                 EXTRA_CONTENDED
             } else {
@@ -312,10 +306,7 @@ impl<T: ?Sized> Mutex<T> {
             .futex
             .compare_exchange(UNLOCKED, LOCKED, Ordering::Acquire, Ordering::Relaxed)
         {
-            Ok(_) => Ok(MutexGuard {
-                lock: self,
-                _phantom: PhantomData,
-            }),
+            Ok(_) => Ok(MutexGuard::new(self)?),
             Err(_) => Err(TryLockError::WouldBlock),
         }
     }
@@ -338,8 +329,9 @@ impl<T: ?Sized> Mutex<T> {
     /// *mutex.get_mut() = 10;
     /// assert_eq!(*mutex.lock(), 10);
     /// ```
-    pub fn get_mut(&mut self) -> &mut T {
-        self.data.get_mut()
+    pub fn get_mut(&mut self) -> LockResult<&mut T> {
+        let data = self.data.get_mut();
+        poison::map_result(self.poison.borrow(), |()| data)
     }
 }
 
@@ -358,6 +350,7 @@ impl<T> Mutex<T> {
         Self {
             data: UnsafeCell::new(data),
             lock_epoch: AtomicU32::new(0),
+            poison: poison::Flag::new(),
             futex: AtomicU32::new(UNLOCKED),
         }
     }
@@ -387,7 +380,18 @@ unsafe impl<T: ?Sized + Sync> Sync for MutexGuard<'_, T> {}
 #[clippy::has_significant_drop]
 pub struct MutexGuard<'a, T: ?Sized + 'a> {
     lock: &'a Mutex<T>,
+    poison: poison::Guard,
     _phantom: PhantomUnsend,
+}
+
+impl<'a, T: ?Sized> MutexGuard<'a, T> {
+    fn new(lock: &'a Mutex<T>) -> LockResult<Self> {
+        poison::map_result(lock.poison.guard(), |guard| Self {
+            lock,
+            poison: guard,
+            _phantom: PhantomData,
+        })
+    }
 }
 
 pub type PhantomUnsend = PhantomData<std::sync::MutexGuard<'static, ()>>;
@@ -411,6 +415,7 @@ impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
 impl<T: ?Sized> Drop for MutexGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
+        self.lock.poison.done(&self.poison);
         let released = self.lock.futex.swap(UNLOCKED, Ordering::Release);
         if released == CONTENDED {
             wake_one(addr_of!(self.lock.futex));
@@ -433,8 +438,32 @@ impl<T: ?Sized + std::fmt::Display> std::fmt::Display for MutexGuard<'_, T> {
     }
 }
 
-pub type TryLockResult<T> = Result<T, TryLockError>;
+// impl<T> From<poison::PoisonError<T>> for TryLockError {
+//     fn from(_value: poison::PoisonError<T>) -> Self {
+//         Self::Poisoned
+//     }
+// }
 
-pub enum TryLockError {
-    WouldBlock,
+#[cfg(test)]
+mod test {
+    use std::sync::Arc;
+
+    use crate::Mutex;
+
+    #[test]
+    fn poisoned() {
+        let m = Arc::new(Mutex::new(()));
+        let mt = m.clone();
+        let _ = std::thread::spawn(move || {
+            let _g = mt.lock();
+            panic!("bail while locked");
+        })
+        .join();
+        match m.lock() {
+            Ok(_) => panic!("must not lock"),
+            Err(_poison) => {
+                // it is poisoned
+            }
+        };
+    }
 }

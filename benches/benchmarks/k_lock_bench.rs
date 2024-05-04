@@ -146,7 +146,7 @@ trait Lock<T>: Sync {
 impl<T: Send> Lock<T> for Mutex<T> {
     #[inline]
     fn lock(&self) -> impl DerefMut<Target = T> {
-        self.lock()
+        self.lock().expect("must not be paniced")
     }
 }
 
