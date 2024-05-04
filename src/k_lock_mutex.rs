@@ -264,6 +264,7 @@ impl<T: ?Sized> Mutex<T> {
                 // Refresh the spin because this lock is making timely progress.
                 epoch = now;
                 spin = 100;
+                std::thread::yield_now();
             }
             spin_loop();
             spin -= 1;
