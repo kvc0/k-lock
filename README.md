@@ -28,14 +28,17 @@ you need your mutex to perform well on Mac OS, you need to use `std::sync::Mutex
 Thread count is on the X axis.
 
 ### About
-This mutex is optimized for brief critical sections. It has short spin cycles
-to prevent overwork, and it aggressively wakes multiple waiters per unlock.
+This mutex is optimized for brief critical sections. It avoids syscalls by spinning
+as long as the lock is making fast progress. It also aggressively wakes multiple
+waiters per unlock when it is heavily contended.
 
 If there is concern about possible panic in a critical section, `std::sync::Mutex`
 is the appropriate choice.
 
 If critical sections are more than a few nanoseconds long, `std::sync::Mutex`
-may be better. As always, profiling and measuring is important.
+may be better. As always, profiling and measuring is important. This mutex is
+tested to outperform `std::sync::Mutex` on brief locks that work with a HashMap
+but further research is needed to determine suitability for wider timespans.
 
 Much of this mutex implementation and its documentation is adapted with humble
 gratitude from the venerable `std::sync::Mutex`.
