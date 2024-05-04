@@ -22,7 +22,7 @@ you need your mutex to perform well on Mac OS, you need to use `std::sync::Mutex
 #### Tiny critical section
 ![image](https://github.com/kvc0/k-lock/assets/3454741/57446b49-5cb1-4900-9cf9-9e5db874c8b7)
 #### Hashmap operation in critical section
-![image](https://github.com/kvc0/k-lock/assets/3454741/4133c48c-603a-4100-bcc6-0c65cbc299b5)
+![image](https://github.com/kvc0/k-lock/assets/3454741/a52a763c-7f60-4c9f-9630-2a3226baa738)
 
 
 Thread count is on the X axis.
