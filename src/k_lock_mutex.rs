@@ -246,6 +246,10 @@ impl<T: ?Sized> Mutex<T> {
                 // Refresh the spin because this lock is making timely progress.
                 epoch = now;
                 spin = 100;
+                // This might be too aggressive - it drops latency for small critical sections
+                // by keeping this thread out of futex, but yield_now is not free either.
+                // Adding a yield to the spin refresh dropped contended latency by over 25%,
+                // but there may be other heuristics that outperform this.
                 std::thread::yield_now();
             }
             spin_loop();
