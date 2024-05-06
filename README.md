@@ -15,16 +15,11 @@ This lock is not optimized for Mac OS at this time. The quick way to lock on
 Mac OS is via pthread_mutex, which is not currently implemented in k-lock. If
 you need your mutex to perform well on Mac OS, you need to use `std::sync::Mutex`.
 
-### AMD x86_64
-#### Hashmap critical section
-![image](https://github.com/kvc0/k-lock/assets/3454741/a804b3c2-f8bd-47fd-9134-9c0409cd9be7)
-
-
 ### AWS c7g.2xlarge aarch64
 #### Tiny critical section
 ![image](https://github.com/kvc0/k-lock/assets/3454741/57446b49-5cb1-4900-9cf9-9e5db874c8b7)
 #### Hashmap critical section
-![image](https://github.com/kvc0/k-lock/assets/3454741/a52a763c-7f60-4c9f-9630-2a3226baa738)
+![image](https://github.com/kvc0/k-lock/assets/3454741/97ca5c69-0965-4ee2-8957-3722e996969f)
 
 
 Thread count is on the X axis.
