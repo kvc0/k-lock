@@ -39,15 +39,7 @@ const EXTRA_CONTENDED: u32 = 3;
 ///
 /// # Poisoning
 ///
-/// The mutex in this module does not implement poisoning.
-///
-/// This means that the [`lock`] and [`try_lock`] methods return a lock, whether
-/// a mutex has been poisoned or not. If a panic can put your program in an invalid
-/// state, you need to ensure that a possibly invalid invariant is not witnessed.
-/// In these cases you should strongly consider using `std::sync::Mutex`.
-///
-/// It is expected that most uses of this lock will work with brief critical sections
-/// that do not expose a significant risk of panic.
+/// The mutex in this module uses the poisoning strategy from `std::sync::Mutex`.
 ///
 /// [`new`]: Self::new
 /// [`lock`]: Self::lock
@@ -80,7 +72,7 @@ const EXTRA_CONTENDED: u32 = 3;
 ///         //
 ///         // We unwrap() the return value to assert that we are not expecting
 ///         // threads to ever fail while holding the lock.
-///         let mut data = data.lock();
+///         let mut data = data.lock().unwrap();
 ///         *data += 1;
 ///         if *data == N {
 ///             tx.send(()).unwrap();
@@ -113,7 +105,7 @@ const EXTRA_CONTENDED: u32 = 3;
 ///     threads.push(thread::spawn(move || {
 ///         // Here we use a block to limit the lifetime of the lock guard.
 ///         let result = {
-///             let mut data = data_mutex_clone.lock();
+///             let mut data = data_mutex_clone.lock().unwrap();
 ///             // This is the result of some important and long-ish work.
 ///             let result = data.iter().fold(0, |acc, x| acc + x * 2);
 ///             data.push(result);
@@ -123,11 +115,11 @@ const EXTRA_CONTENDED: u32 = 3;
 ///         };
 ///         // The guard created here is a temporary dropped at the end of the statement, i.e.
 ///         // the lock would not remain being held even if the thread did some additional work.
-///         *res_mutex_clone.lock() += result;
+///         *res_mutex_clone.lock().unwrap() += result;
 ///     }));
 /// });
 ///
-/// let mut data = data_mutex.lock();
+/// let mut data = data_mutex.lock().unwrap();
 /// // This is the result of some important and long-ish work.
 /// let result = data.iter().fold(0, |acc, x| acc + x * 2);
 /// data.push(result);
@@ -145,7 +137,7 @@ const EXTRA_CONTENDED: u32 = 3;
 /// // Here the mutex guard is not assigned to a variable and so, even if the
 /// // scope does not end after this line, the mutex is still released: there is
 /// // no deadlock.
-/// *res_mutex.lock() += result;
+/// *res_mutex.lock().unwrap() += result;
 ///
 /// threads.into_iter().for_each(|thread| {
 ///     thread
@@ -153,7 +145,7 @@ const EXTRA_CONTENDED: u32 = 3;
 ///         .expect("The thread creating or execution failed !")
 /// });
 ///
-/// assert_eq!(*res_mutex.lock(), 800);
+/// assert_eq!(*res_mutex.lock().unwrap(), 800);
 /// ```
 pub struct Mutex<T: ?Sized> {
     futex: AtomicU32,
@@ -177,16 +169,12 @@ impl<T: ?Sized> Mutex<T> {
     /// # Errors
     ///
     /// If another user of this mutex panicked while holding the mutex, then
-    /// this call will `NOT` return an error once the mutex is acquired. If
-    /// your critical section can panic then you need to account for that.
-    ///
-    /// This mutex is designed primarily for use cases with short critical
-    /// sections. A count or reference swap, for example.
+    /// this call will return an error once the mutex is acquired.
     ///
     /// # Panics
     ///
     /// This function might panic when called if the lock is already held by
-    /// the current thread.
+    /// the current thread. It also might not. Don't try it!
     ///
     /// # Examples
     ///
@@ -199,9 +187,9 @@ impl<T: ?Sized> Mutex<T> {
     /// let c_mutex = Arc::clone(&mutex);
     ///
     /// thread::spawn(move || {
-    ///     *c_mutex.lock() = 10;
+    ///     *c_mutex.lock().unwrap() = 10;
     /// }).join().expect("thread::spawn failed");
-    /// assert_eq!(*mutex.lock(), 10);
+    /// assert_eq!(*mutex.lock().unwrap(), 10);
     /// ```
     #[inline]
     pub fn lock(&self) -> LockResult<MutexGuard<T>> {
@@ -298,7 +286,7 @@ impl<T: ?Sized> Mutex<T> {
     ///         println!("try_lock failed");
     ///     }
     /// }).join().expect("thread::spawn failed");
-    /// assert_eq!(*mutex.lock(), 10);
+    /// assert_eq!(*mutex.lock().unwrap(), 10);
     /// ```
     #[inline]
     pub fn try_lock(&self) -> TryLockResult<MutexGuard<'_, T>> {
@@ -318,7 +306,7 @@ impl<T: ?Sized> Mutex<T> {
     ///
     /// # Errors
     ///
-    /// None. If your critical section can panic then you need to account for that.
+    /// PoisonError if a thread has previously paniced while holding this mutex.
     ///
     /// # Examples
     ///
@@ -326,8 +314,8 @@ impl<T: ?Sized> Mutex<T> {
     /// use k_lock::Mutex;
     ///
     /// let mut mutex = Mutex::new(0);
-    /// *mutex.get_mut() = 10;
-    /// assert_eq!(*mutex.lock(), 10);
+    /// *mutex.get_mut().unwrap() = 10;
+    /// assert_eq!(*mutex.lock().unwrap(), 10);
     /// ```
     pub fn get_mut(&mut self) -> LockResult<&mut T> {
         let data = self.data.get_mut();
@@ -438,12 +426,6 @@ impl<T: ?Sized + std::fmt::Display> std::fmt::Display for MutexGuard<'_, T> {
     }
 }
 
-// impl<T> From<poison::PoisonError<T>> for TryLockError {
-//     fn from(_value: poison::PoisonError<T>) -> Self {
-//         Self::Poisoned
-//     }
-// }
-
 #[cfg(test)]
 mod test {
     use std::sync::Arc;
@@ -455,7 +437,7 @@ mod test {
         let m = Arc::new(Mutex::new(()));
         let mt = m.clone();
         let _ = std::thread::spawn(move || {
-            let _g = mt.lock();
+            let _g = mt.lock().unwrap();
             panic!("bail while locked");
         })
         .join();

@@ -34,27 +34,19 @@ This mutex is optimized for brief critical sections. It avoids syscalls by spinn
 as long as the lock is making fast progress. It also aggressively wakes multiple
 waiters per unlock when it is heavily contended.
 
-If there is concern about possible panic in a critical section, `std::sync::Mutex`
-is the appropriate choice.
-
-If critical sections are more than a few nanoseconds long, `std::sync::Mutex`
-may be better. As always, profiling and measuring is important. This mutex is
-tested to outperform `std::sync::Mutex` on brief locks that work with a HashMap
-but further research is needed to determine suitability for wider timespans.
+In some cases, `std::sync::Mutex` may be better. As always, profiling and measuring
+is important. This mutex is tested to outperform `std::sync::Mutex` on brief locks
+that work with a HashMap but further research is needed to determine suitability for
+wider timespans.
 
 Much of this mutex implementation and its documentation is adapted with humble
 gratitude from the venerable `std::sync::Mutex`.
 
 ## Poisoning
-The mutex in this module does not implement poisoning.
+The mutex in this module uses the poisoning strategy from `std::sync::Mutex`.
 
-This means that the \[`lock`\] and \[`try_lock`\] methods return a lock, whether
-a mutex has been poisoned or not. If a panic can put your program in an invalid
-state, you need to ensure that a possibly invalid invariant is not witnessed.
-In these cases you should strongly consider using `std::sync::Mutex`.
-
-It is expected that most uses of this lock will work with brief critical sections
-that do not expose a significant risk of panic.
+It is expected that most uses of this mutex will be to `lock().expect("description")`
+to propagate a panic from one thread onto all synchronized threads.
 
 ## Examples
 
@@ -83,7 +75,7 @@ for _ in 0..N {
         //
         // We unwrap() the return value to assert that we are not expecting
         // threads to ever fail while holding the lock.
-        let mut data = data.lock();
+        let mut data = data.lock().unwrap();
         *data += 1;
         if *data == N {
             tx.send(()).unwrap();
@@ -116,7 +108,7 @@ let mut threads = Vec::with_capacity(N);
     threads.push(thread::spawn(move || {
         // Here we use a block to limit the lifetime of the lock guard.
         let result = {
-            let mut data = data_mutex_clone.lock();
+            let mut data = data_mutex_clone.lock().unwrap();
             // This is the result of some important and long-ish work.
             let result = data.iter().fold(0, |acc, x| acc + x * 2);
             data.push(result);
@@ -126,11 +118,11 @@ let mut threads = Vec::with_capacity(N);
         };
         // The guard created here is a temporary dropped at the end of the statement, i.e.
         // the lock would not remain being held even if the thread did some additional work.
-        *res_mutex_clone.lock() += result;
+        *res_mutex_clone.lock().unwrap() += result;
     }));
 });
 
-let mut data = data_mutex.lock();
+let mut data = data_mutex.lock().unwrap();
 // This is the result of some important and long-ish work.
 let result = data.iter().fold(0, |acc, x| acc + x * 2);
 data.push(result);
@@ -148,7 +140,7 @@ drop(data);
 // Here the mutex guard is not assigned to a variable and so, even if the
 // scope does not end after this line, the mutex is still released: there is
 // no deadlock.
-*res_mutex.lock() += result;
+*res_mutex.lock().unwrap() += result;
 
 threads.into_iter().for_each(|thread| {
     thread
@@ -156,5 +148,5 @@ threads.into_iter().for_each(|thread| {
         .expect("The thread creating or execution failed !")
 });
 
-assert_eq!(*res_mutex.lock(), 800);
+assert_eq!(*res_mutex.lock().unwrap(), 800);
 ```
