@@ -348,6 +348,40 @@ impl<T> Mutex<T> {
     }
 }
 
+impl<T> From<T> for Mutex<T> {
+    /// Creates a new mutex in an unlocked state ready for use.
+    /// This is equivalent to [`Mutex::new`].
+    fn from(t: T) -> Self {
+        Mutex::new(t)
+    }
+}
+
+impl<T: ?Sized + Default> Default for Mutex<T> {
+    /// Creates a `Mutex<T>`, with the `Default` value for T.
+    fn default() -> Mutex<T> {
+        Mutex::new(Default::default())
+    }
+}
+
+impl<T: ?Sized + std::fmt::Debug> std::fmt::Debug for Mutex<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("Mutex");
+        match self.try_lock() {
+            Ok(guard) => {
+                d.field("data", &&*guard);
+            }
+            Err(TryLockError::Poisoned(err)) => {
+                d.field("data", &&**err.get_ref());
+            }
+            Err(TryLockError::WouldBlock) => {
+                d.field("data", &format_args!("<locked>"));
+            }
+        }
+        d.field("poisoned", &self.poison.get());
+        d.finish_non_exhaustive()
+    }
+}
+
 // these are the only places where `T: Send` matters; all other
 // functionality works fine on a single thread.
 unsafe impl<T: ?Sized + Send> Send for Mutex<T> {}
@@ -441,7 +475,7 @@ mod test {
         let m = Arc::new(Mutex::new(()));
         let mt = m.clone();
         let _ = std::thread::spawn(move || {
-            let _g = mt.lock().unwrap();
+            let _g = mt.lock().expect("lock must succeed");
             panic!("bail while locked");
         })
         .join();
