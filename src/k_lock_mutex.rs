@@ -219,7 +219,7 @@ impl<T: ?Sized> Mutex<T> {
                 CONTENDED
             } else if state == CONTENDED {
                 if self.futex.swap(EXTRA_CONTENDED, Ordering::Acquire) == UNLOCKED {
-                    self.lock_epoch.fetch_add(1, Ordering::Relaxed);
+                    self.lock_epoch.fetch_add(1, Ordering::Release);
                     return MutexGuard::new(self);
                 }
                 EXTRA_CONTENDED
@@ -237,11 +237,19 @@ impl<T: ?Sized> Mutex<T> {
         let mut spin = 400;
         let mut epoch = 0;
         loop {
-            let v = self.futex.load(Ordering::Relaxed);
+            let v = if 200 < spin {
+                self.futex.load(Ordering::Relaxed)
+            } else {
+                self.futex.load(Ordering::Acquire)
+            };
             if v != LOCKED || spin == 0 {
                 break v;
             }
-            let now = self.lock_epoch.load(Ordering::Relaxed);
+            let now = if 200 < spin {
+                self.lock_epoch.load(Ordering::Relaxed)
+            } else {
+                self.lock_epoch.load(Ordering::Acquire)
+            };
             if now != epoch {
                 // Refresh the spin because this lock is making timely progress.
                 epoch = now;
