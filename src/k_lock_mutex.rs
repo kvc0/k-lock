@@ -234,7 +234,7 @@ impl<T: ?Sized> Mutex<T> {
     /// Move this out so it does not bloat asm.
     #[cold]
     fn spin(&self) -> u32 {
-        let mut spin = 100;
+        let mut spin = 400;
         let mut epoch = 0;
         loop {
             let v = self.futex.load(Ordering::Relaxed);
@@ -245,7 +245,7 @@ impl<T: ?Sized> Mutex<T> {
             if now != epoch {
                 // Refresh the spin because this lock is making timely progress.
                 epoch = now;
-                spin = 100;
+                spin = 400;
                 // This might be too aggressive - it drops latency for small critical sections
                 // by keeping this thread out of futex, but yield_now is not free either.
                 // Adding a yield to the spin refresh dropped contended latency by over 25%,
